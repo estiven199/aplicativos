@@ -1,0 +1,790 @@
+import requests
+import json
+import boto3
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)
+
+def get_s3_file(key, secret, filename):
+    BUCKET = 'connect-b41e18daa2fc'
+    client = boto3.resource('s3', aws_access_key_id=key, aws_secret_access_key=secret)
+    r = client.Object(BUCKET, filename).get()['Body'].read()
+    return json.loads(r)
+def send_s3_file(key, secret, filename, file):
+    BUCKET = 'connect-b41e18daa2fc'
+    s3 = boto3.resource('s3', aws_access_key_id=key, aws_secret_access_key=secret)
+    r = s3.Object(BUCKET, FILE).put(Body=file)
+    return json.loads(r)
+def get_aws_token():
+    with open('C:\\AWS\\AWS.json', 'r') as json_data:
+        d1 = json_data.read()
+    d = json.loads(d1)
+    return d
+def pricing(cost, level, deviation=False, margin=False):
+    markup = [[0.350, 0.400, 0.450, 0.500],
+              [0.300, 0.350, 0.400, 0.450],
+              [0.250, 0.300, 0.350, 0.400],
+              [0.200, 0.275, 0.325, 0.375],
+              [0.180, 0.225, 0.275, 0.325],
+              [0.150, 0.200, 0.250, 0.300]]
+
+    if deviation:
+        dev = 0.05
+    else:
+        dev = 0
+    if cost <= 2.5:
+        tier = 0
+    elif cost <= 7:
+        tier = 1
+    elif cost <= 15:
+        tier = 2
+    elif cost <= 50:
+        tier = 3
+    elif cost <= 150:
+        tier = 4
+    else:
+        tier = 5
+    if margin:
+        p = markup[tier][level] + dev
+        result = str(int(p*100)) + '%'
+    else:
+        p = cost / (1 - (markup[tier][level] + dev))
+        result = round(p,2)
+    return result
+
+class BooksZohoApi:
+    def __init__(self,token,organization_id = 683229417):
+        #payload = 'https://accounts.zoho.com/oauth/v2/token?refresh_token='+str('1000.599842b96a977fe307e694b2351586e6.e4d1a6201e797664a331d2fa01cf1cdd')+'&redirect_uri=https://deluge.zoho.com/delugeauth/callback'+'&client_id='+str('1000.P7B3MWL7BBMET8SSJILE5KBVOLKXMP')+'&client_secret='+str('c372eaa26c08f3b240080292941327117a19cc2347')+'&grant_type=refresh_token'
+        self.endpoint = 'https://books.zoho.com/api/v3/'
+        self.authtoken = '?organization_id=' + str(organization_id)
+        self.headers = {"Authorization":'Zoho-oauthtoken '+ str(token)}
+    def _standard_call(self, module, call_type, data=None, file = None, **kwargs):
+        self.module = module
+        self.payload = self.endpoint + self.module + self.authtoken
+        additional_args = locals()['kwargs']
+        if len(additional_args) == 0:
+            if data == None:
+                self.params = None
+            else:
+                self.params = {'JSONString': str(data)}
+        else:
+            if data == None:
+                self.params = {}
+            else:
+                self.params = {'JSONString': str(data)}
+            keys = []
+            extra_param = {}
+            for i in kwargs:
+                keys.append(i)
+                extra_param = {i: additional_args[i]}
+                self.params.update(extra_param)      
+        if call_type == 'GET':
+            self.request = requests.get(url=self.payload, headers=self.headers, params=self.params).text
+        elif call_type == 'POST':
+            self.request = requests.post(url=self.payload, headers=self.headers, params=self.params,files=file).text
+        elif call_type == 'PUT':
+            self.request = requests.put(url=self.payload, headers=self.headers, params=self.params).text
+        elif call_type == 'DELETE':
+            self.request = requests.delete(url=self.payload, headers=self.headers, params=self.params).text
+        try:
+            self.r = json.loads(self.request)
+        except:
+            self.r = self.request
+        return self.r
+
+    def item_image(self,item_id,json_data):
+        return self._standard_call('items/{}/images'.format(item_id),'POST',json_data)
+    def add_additional_address_contact(self,contact_id,json_data):
+        return self._standard_call('contacts/{}/address'.format(contact_id),'POST',json_data)
+    def attachment_po(self,purchase_id,json):
+        return self._standard_call('purchaseorders/{}/attachment'.format(purchase_id),'POST',file = json) 
+    def attachment_so(self,salesorder_id,json):
+        return self._standard_call('salesorders/{}/attachment'.format(salesorder_id),'POST',file = json) 
+    def create_contacts(self, json_data):
+        return self._standard_call('contacts','POST',json_data)
+    def create_contact_person(self, json_data):
+        return self._standard_call('contacts/contactpersons','POST',json_data)####
+    def create_contact_address(self, contact_id, json_data):
+        return self._standard_call('contacts/{}/address'.format(contact_id),'POST',json_data)
+    def create_estimate(self, json_data):
+        return self._standard_call('estimates','POST',json_data)####
+    def create_sorder(self, json_data, autogen=True):
+        return self._standard_call('salesorders','POST',json_data,ignore_auto_number_generation=autogen)
+    def create_invoice(self, json_data):
+        return self._standard_call('invoices','POST',json_data)
+    def create_invoice_list(self, json_data):
+        return self._standard_call('salesorders/quickcreate/invoices','POST',json_data)    
+    def create_creditnote(self, json_data):
+        return self._standard_call('creditnotes','POST',json_data)
+    def create_creditnote_salesreturns(self,json_data,**kwargs):
+        return self._standard_call('creditnotes','POST',json_data)
+    def create_salesreturn(self,json_data, **kwargs):
+        return self._standard_call('salesreturns','POST',json_data,**kwargs)
+    def create_refunds(self,creditnote_id,json_data):
+        return self._standard_call('creditnotes/{}/refunds'.format(creditnote_id),'POST',json_data)
+    def create_customerPayments(self, json_data):
+        return self._standard_call('customerpayments','POST',json_data)
+    def create_expenses(self, json_data):
+        return self._standard_call('expenses','POST',json_data)
+    def create_porder(self, json_data):
+        return self._standard_call('purchaseorders','POST',json_data,ignore_auto_number_generation=True)
+    def create_purchase_receive(self, purchase_id, json_data):
+        return self._standard_call('purchasereceives/','POST',json_data,purchaseorder_id=purchase_id,ignore_auto_number_generation=False)
+    def create_bill(self, json_data):
+        return self._standard_call('bills/','POST',json_data)
+    def create_bills_receive(self, bill_id, purchase_id, json_data):
+        return self._standard_call('purchasereceives/','POST',json_data,bill_id=bill_id,purchaseorder_id=purchase_id,ignore_auto_number_generation=False)
+    def create_vendor_credits(self,json_data,autogen=True):#####
+        return self._standard_call('vendorcredits', 'POST', json_data, ignore_auto_number_generation=autogen)
+    def create_vendor_payments(self,json_data,autogen=True):#####
+        return self._standard_call('vendorpayments', 'POST',  json_data, ignore_auto_number_generation=autogen)
+    def create_items(self, json_data):
+        return self._standard_call('items/','POST',json_data)
+    def create_shipment(self, package_id, so_id, json_data, autogen=False):
+        return self._standard_call('shipmentorders','POST',json_data,ignore_auto_number_generation=autogen,salesorder_id=so_id,package_ids=[package_id])
+    def create_package(self, order_id, json_data):
+        return self._standard_call('packages','POST',json_data,salesorder_id=order_id,ignore_auto_number_generation=False)
+    def create_transfer_order(self, json_data, autogen=True):
+        return self._standard_call('transferorders', 'POST', json_data, ignore_auto_number_generation=autogen)
+    def create_inventory_adjustment(self, json_data):   
+        return self._standard_call('inventoryadjustments','POST',json_data)
+    def create_salesreturn_receives(self,json_data,**kwargs):
+        return self._standard_call('salesreturnreceives','POST', json_data,**kwargs)  
+
+    # Update#
+    def update_contact(self, contact_id, json_data):
+        return self._standard_call('contacts/{}'.format(contact_id),'PUT',json_data)
+    def update_contact_address(self, contact_id, address_id, json_data):
+        return self._standard_call('contacts/{}/address/{}'.format(contact_id,address_id),'PUT',json_data)
+    def update_estimates(self, estimate_id, json_data):####
+        return self._standard_call('estimates/{}'.format(estimate_id), 'PUT', json_data)
+    def update_estimate_billing(self, estimate_id, json_data):####
+        return self._standard_call('estimates/{}/address/billing'.format(estimate_id), 'PUT', json_data)
+    def update_estimate_shipping(self, estimate_id, json_data):####
+        return self._standard_call('estimates/{}/address/shipping'.format(estimate_id), 'PUT', json_data)
+    def update_sorder(self, order_id, json_data ,**kwargs):
+        return self._standard_call('salesorders/{}'.format(order_id),'PUT',json_data,**kwargs)
+    def update_sorder_billing(self, order_id, json_data):####
+        return self._standard_call('salesorders/{}/address/billing'.format(order_id), 'PUT', json_data)
+    def update_sorder_shipping(self, order_id, json_data):####
+        return self._standard_call('salesorders/{}/address/shipping'.format(order_id), 'PUT', json_data)
+    def update_invoice(self, invoice_id, json_data):
+        return self._standard_call('invoices/{}'.format(invoice_id),'PUT',json_data)
+    def update_invoice_billing(self, invoice_id, json_data):####
+        return self._standard_call('invoices/{}/address/billing'.format(invoice_id),'PUT',json_data)
+    def update_invoice_shipping(self, invoice_id, json_data):####
+        return self._standard_call('invoices/{}/address/shipping'.format(invoice_id),'PUT',json_data)
+    def update_credit_note(self, creditnote_id, json_data):
+        return self._standard_call('creditnotes/{}'.format(creditnote_id),'PUT',json_data)
+    def update_credit_note_invoice_billing(self, invoice_id, json_data):####
+        return self._standard_call('creditnotes/{}/address/billing'.format(creditnote_id),'PUT',json_data)
+    def update_credit_note_shipping(self, invoice_id, json_data):####
+        return self._standard_call('creditnotes/{}/address/shipping'.format(creditnote_id),'PUT',json_data)
+    def update_credit_note_refund(self, invoice_id, creditnote_refund_id, json_data):####
+        return self._standard_call('creditnotes/:/refunds/:'.format(creditnote_id,creditnote_refund_id),'PUT',json_data)
+    def update_customerPayments(self, payment_id, json_data):####
+        return self._standard_call('customerpayments/{}'.format(payment_id),'PUT',json_data)
+    def update_customerPayments_refund(self, payment_id, refund_id, json_data):####
+        return self._standard_call('customerpayments/{}/refunds/:'.format(payment_id,refund_id),'PUT',json_data)
+    def update_expenses(self, expense_id, json_data):####
+        return self._standard_call('expenses/{}'.format(expense_id),'PUT',json_data)
+    def update_porder(self, purchase_order_id, json_data):
+        return self._standard_call('purchaseorders/{}'.format(purchase_order_id),'PUT',json_data)
+    def update_porder_billing(self, order_id, json_data):####
+        return self._standard_call('purchaseorders/{}/address/billing'.format(order_id), 'PUT', json_data)
+    def update_porder_shipping(self, order_id, json_data):####
+        return self._standard_call('purchaseorders/{}/address/shipping'.format(order_id), 'PUT', json_data)
+    def update_bill(self, bill_id, json_data):
+        return self._standard_call('bills/{}'.format(bill_id),'PUT',json_data)####
+    def update_bill_billing(self, bill_id, json_data):
+        return self._standard_call('bills/{}/address/billing'.format(bill_id),'PUT',json_data)####
+    def update_vendor_credits(self, vendor_credit_id, json_data):
+        return self._standard_call('vendorcredits/{}'.format(vendor_credit_id),'PUT',json_data)####
+    def update_vendor_payment(self, payment_id, json_data):
+        return self._standard_call('vendorpayments/{}'.format(payment_id),'PUT',json_data)
+    def update_item(self, item_id, json_data):
+        return self._standard_call('items/{}'.format(item_id),'PUT',json_data)
+    def update_package(self, package_id, json_data):
+        return self._standard_call('packages/{}'.format(package_id),'PUT',json_data)
+
+    # Delete#
+    def delete_contact(self, contact_person_id):
+        return self._standard_call('contacts/{}'.format(contact_person_id),'DELETE')####
+    def delete_contact_address(self, contact_person_id, address_id):
+        return self._standard_call('contacts/{:}/address/{:}'.format(contact_person_id, address_id),'DELETE')####
+    def delete_estimates(self, estimates_id):
+        return self._standard_call('estimates/{}'.format(estimates_id),'DELETE')
+    def delete_sorder(self, order_id):
+        return self._standard_call('salesorders/{}'.format(order_id),'DELETE')
+    def delete_invoice(self, invoice_id):
+        return self._standard_call('invoices/{}'.format(invoice_id),'DELETE')
+    def delete_invoicePayment(self, invoice_id, invoice_payment_id):
+        return self._standard_call('invoices/{:}/payments/{:}'.format(invoice_id, invoice_payment_id),'DELETE')####
+    def delete_applied_credit(self, invoice_id, creditnotes_invoice_id):
+        return self._standard_call('invoices/{:}/creditsapplied/{:}'.format(invoice_id, creditnotes_invoice_id),'DELETE')####
+    def delete_creditNote(self, creditnote_id):
+        return self._standard_call('creditnotes/{}'.format(creditnote_id),'DELETE')####
+    def delete_creditNote_refund(self, creditnote_id,creditnote_refund_id):
+        return self._standard_call('creditnotes/{}/refunds/{}'.format(creditnote_id,creditnote_refund_id),'DELETE')#####
+    def delete_customerPayments(self, customerpayments_id):
+        return self._standard_call('customerpayments/{}'.format(customerpayments_id),'DELETE')
+    def delete_expenses(self, expense_id):
+        return self._standard_call('expenses/{}'.format(expense_id), 'DELETE')#####
+    def delete_porder(self, order_id):
+        return self._standard_call('purchaseorders/{}'.format(order_id),'DELETE')
+    def delete_bill(self, bill_id):
+        return self._standard_call('bills/{}'.format(bill_id),'DELETE')########
+    def delete_bills_vendorCredits(self, vendor_credit_id,vendor_credit_bill_id):
+        return self._standard_call('bills/{}'.format(vendor_credit_id,vendor_credit_bill_id),'DELETE')########
+    def delete_bill_payments(self, bill_id,bill_payment_id):
+        return self._standard_call('bills/{}/payments/{}'.format(bill_id,bill_payment_id),'DELETE')########
+    def delete_vendorPayment(self, payment_id):
+        return self._standard_call('vendorpayments/{}'.format(payment_id),'DELETE')########
+    def delete_items(self, item_id):
+        return self._standard_call('items/{}'.format(item_id),'DELETE')
+    def delete_shipment(self, shipment_id):
+        return self._standard_call('shipmentorders/{}'.format(shipment_id),'DELETE')
+    def delete_package(self, package_id):
+        return self._standard_call('packages/{}'.format(package_id),'DELETE')
+    def delete_item_adjusment(self,inventory_adjustment_id):
+        return self._standard_call('inventoryadjustments/{}'.format(inventory_adjustment_id),'DELETE') 
+    def delete_purchasereceives(self,purchasereceive_id):
+        return  self._standard_call ('purchasereceives/'+str(purchasereceive_id),'DELETE')
+    def delete_attachment_purchaseorders(self,purchaseorder_id):
+        return  self._standard_call ('purchaseorders/'+str(purchaseorder_id)+'/attachment','DELETE')
+
+    # List#
+    def list_contacts(self, **kwargs):
+        return self._standard_call('contacts', 'GET', **kwargs)
+    def list_estimates(self, **kwargs):####
+        return self._standard_call('estimates', 'GET', **kwargs)
+    def list_credit_notes(self, **kwargs):####
+        return self._standard_call('creditnotes', 'GET', **kwargs)
+    def list_credit_note_refunds(self, **kwargs):####
+        return self._standard_call('creditnotes/refunds', 'GET', **kwargs)
+    def list_customer_payments(self, **kwargs):####
+        return self._standard_call('customerpayments', 'GET', **kwargs)
+    def list_expenses(self, **kwargs):####
+        return self._standard_call('expenses', 'GET', **kwargs)
+    def list_employees(self, **kwargs):####
+        return self._standard_call('employees', 'GET', **kwargs)
+    def list_bills(self, **kwargs):####
+        return self._standard_call('bills', 'GET', **kwargs)
+    def list_vendor_credits(self, **kwargs):####
+        return self._standard_call('vendorcredits', 'GET', **kwargs)
+    def list_vendor_payments(self, **kwargs):####
+        return self._standard_call('vendorpayments', 'GET', **kwargs)
+    def list_users(self, **kwargs):####
+        return self._standard_call('users', 'GET', **kwargs)
+    def list_items(self, **kwargs):####
+        return self._standard_call('items', 'GET', **kwargs)
+    def list_sorders(self,**kwargs):
+        return self._standard_call('salesorders','GET', **kwargs)
+    def list_salesreturns(self,**kwargs):
+        return self._standard_call('salesreturns','GET', **kwargs)
+    def list_porders(self, **kwargs):
+        return self._standard_call('purchaseorders','GET', **kwargs)
+    def list_packages(self, **kwargs):
+        return self._standard_call('packages','GET', **kwargs)
+    def list_all_pricebooks_id(self, **kwargs):
+        return self._standard_call('pricebooks','GET', **kwargs)
+    def list_invoices(self, **kwargs):
+        return self._standard_call('invoices', 'GET', **kwargs)
+    def list_projects(self, **kwargs):
+        return self._standard_call('projects', 'GET', **kwargs)
+    def list_item_adjustments(self,**kwargs):
+        return self._standard_call('inventoryadjustments', 'GET', **kwargs)
+    def list_projects_invoices(self, project_id,**kwargs):
+        return self._standard_call('projects/{}/invoices'.format(project_id),'GET',**kwargs)
+    def list_transferorders(self, **kwargs):
+        return self._standard_call('transferorders','GET',**kwargs)
+    def list_purchasereceives(self, **kwargs):
+        return self._standard_call('purchasereceives','GET',**kwargs)
+          
+
+    # Get#
+    def get_contact(self, contact_id):
+        return self._standard_call('contacts/{}'.format(contact_id),'GET')
+    def get_estimate(self, estimate_id):
+        return self._standard_call('estimates/{}'.format(estimate_id), 'GET')####
+    def get_sorder(self, order_id):
+        return self._standard_call('salesorders/{}'.format(str(order_id)),'GET')
+    def get_invoice(self, invoice_id):
+        return self._standard_call('invoices/{}'.format(invoice_id),'GET')
+    def get_credit_note(self, creditnote_id):
+        return self._standard_call('creditnotes/{}'.format(creditnote_id),'GET')####
+    def get_customer_payment(self, customerpayments_id):
+        return self._standard_call('customerpayments/{}'.format(customerpayments_id),'GET')####
+    def get_expense(self, expense_id):
+        return self._standard_call('expenses/{}'.format(expense_id),'GET')####
+    def get_employee(self, employees_id):
+        return self._standard_call('employees/{}'.format(employees_id),'GET')####
+    def get_porder(self, purchaseorder_id):
+        return self._standard_call('purchaseorders/{}'.format(purchaseorder_id),'GET')
+    def get_bill_attachment(self, bills_id):
+        return self._standard_call('bills/{}/attachment'.format(bills_id),'GET')
+    def get_bill(self, bills_id):
+        return self._standard_call('bills/{}'.format(bills_id),'GET')    
+    def get_bill_payments(self, bills_id):
+        return self._standard_call('bills/{}/payments'.format(bills_id),'GET')
+    def get_vendor_credit(self, vendor_credit_id):
+        return self._standard_call('vendorcredits/{}'.format(vendor_credit_id),'GET')####
+    def get_vendor_payment(self, payment_id):
+        return self._standard_call('vendorpayments/{}'.format(payment_id),'GET')####
+    def get_user(self, user_id):
+        return self._standard_call('users/{}'.format(user_id),'GET')####
+    def get_item(self, item_id):
+        return self._standard_call('items/{}'.format(item_id),'GET')
+    def get_contact_address(self, contact_id):
+        return self._standard_call('contacts/{}/address'.format(contact_id),'GET')####
+    def get_package(self, package_id):
+        return self._standard_call('packages/{}'.format(package_id),'GET')
+    def get_shipment(self, shipment_id):
+        return self._standard_call('shipmentorders/{}'.format(shipment_id),'GET')
+    def get_pricebook(self,pricebook_id):
+        return self._standard_call('pricebooks/{}'.format(pricebook_id),'GET')
+    def get_salesreturn(self, salesreturn_id):
+        return self._standard_call('salesreturns/{}'.format(salesreturn_id),'GET')  
+    def get_inventoryadjustments(self, inventory_adjustment_id):
+        return self._standard_call('inventoryadjustments/{}'.format(inventory_adjustment_id),'GET')
+    def get_purchasereceives(self, purchasereceive_id):
+        return self._standard_call('purchasereceives/{}'.format(purchasereceive_id),'GET')
+    def get_bank_transaction(self,transaction_id):
+        return self._standard_call('banktransactions/{}'.format(transaction_id),'GET')    
+    def get_po_email(self,purchaseorder_id):
+        return self._standard_call('purchaseorders/{}/email'.format(purchaseorder_id),'GET')  
+ 
+    
+
+    # Mark As#
+    def mark_contact_as_active(self, contact_id):####
+        return self._standard_call('contacts/{}/active'.format(contact_id),'POST')
+    def mark_contact_as_inactive(self, contact_id):####
+        return self._standard_call('contacts/{}/inactive'.format(contact_id),'POST')
+    def mark_estimate_as_sent(self, estimate_id):####
+        return self._standard_call('estimates/{:}/status/sent'.format(contact_id),'POST')
+    def mark_estimate_as_accepted(self, estimate_id):####
+        return self._standard_call('estimates/{:}/status/accepted'.format(contact_id),'POST')
+    def mark_estimate_as_declined(self, estimate_id):####
+        return self._standard_call('estimates/{:}/status/declined'.format(contact_id),'POST')
+    def mark_sorder_as_open(self, salesorder_id):####
+        return self._standard_call('salesorders/{:}/status/open'.format(salesorder_id),'POST')
+    def mark_sorder_as_voided(self, order_id):####
+        return self._standard_call('salesorders/{}/status/void'.format(order_id),'POST')
+    def mark_invoice_as_sent(self, invoice_id):####
+        return self._standard_call('invoices/{}/status/sent'.format(invoice_id),'POST')
+    def mark_invoice_as_void(self, invoice_id):####
+        return self._standard_call('invoices/{}/status/void'.format(invoice_id),'POST')
+    def mark_invoice_as_draft(self, invoice_id):####
+        return self._standard_call('invoices/:/status/draft'.format(invoice_id),'POST')
+    def mark_credit_note_as_void(self, creditnote_id):####
+        return self._standard_call('creditnotes/{}/status/void'.format(creditnote_id),'POST')
+    def mark_credit_note_as_draft(self, creditnote_id):####
+        return self._standard_call('creditnotes/{}/status/draft'.format(creditnote_id),'POST')
+    def mark_credit_note_as_open(self, creditnote_id):####
+        return self._standard_call('creditnotes/{}/status/open'.format(creditnote_id),'POST')
+    def mark_porder_as_open(self, purchaseorder_id):####
+        return self._standard_call('purchaseorders/{}/status/open'.format(purchaseorder_id),'POST')
+    def mark_porder_as_billed(self, purchaseorder_id):####
+        return self._standard_call('purchaseorders/{}/status/billed'.format(purchaseorder_id),'POST')
+    def mark_porder_as_cancelled(self, purchaseorder_id):####
+        return self._standard_call('purchaseorders/{}/status/cancelled'.format(purchaseorder_id),'POST')
+    def mark_bill_as_void(self, purchaseorder_id):####
+        return self._standard_call('bills/{}/status/void'.format(purchaseorder_id),'POST')
+    def mark_bill_as_open(self, purchaseorder_id):####
+        return self._standard_call('bills/{}/status/open'.format(purchaseorder_id),'POST')
+    def mark_shipment_as_delivered(self, shipment_id):
+        return self._standard_call('shipmentorders/{}/status/delivered'.format(shipment_id),'POST')
+    def mark_item_as_inactive(self, item_id):
+        return self._standard_call('items/{}/inactive'.format(item_id),'POST')
+    def mark_item_as_active(self, item_id):####
+        return self._standard_call('items/{}/active'.format(item_id),'POST')
+    def mark_transferorders_received(self, transfer_order_id,json_data):####
+        return self._standard_call('transferorders/{}/markastransferred'.format(transfer_order_id),'POST',json_data)
+
+    def report_activitylogs(self,**kwargs):
+        return self._standard_call('reports/activitylogs','GET',**kwargs) 
+    def report_account_transactions(self,**kwargs):
+        return self._standard_call('reports/accounttxns?','GET',**kwargs)       
+        
+    def sent_statements(self,contact_id,json_data,**kwargs):
+        return self._standard_call('contacts/{}/statements/email'.format(contact_id),'POST',json_data,**kwargs)
+    def sent_invoice(self,invoice_id,json_data):
+        return self._standard_call('invoices/{}/email'.format(invoice_id),'POST',json_data)
+    def report_inventory_summary(self,**kwargs):
+        return self._standard_call('reports/inventorysummary','GET',**kwargs)  
+        
+    def report_account_transactions(self,**kwargs):
+        return self._standard_call('reports/accounttxns','GET',**kwargs) 
+
+    def set_pricelist_price_item(self, pricebook_id: str, item_id: str, data: dict):
+        return self._standard_call(f'pricebooks/{pricebook_id}/items/{item_id}', 'PUT', data)      
+
+class InventoryZohoApi:
+    def __init__(self,token,organization_id=683229417):
+        self.endpoint = 'https://inventory.zoho.com/api/v1/'
+        self.authtoken = '?organization_id=' + str(organization_id)
+        self.headers = {"Authorization":'Zoho-oauthtoken '+ str(token) ,
+        "Content-Type": "application/json;charset=UTF-8"}
+
+    def _standard_call(self, module, call_type, data=None, file = None, **kwargs):
+        self.module = module
+        self.payload = self.endpoint + self.module + self.authtoken
+        additional_args = locals()['kwargs']
+
+        if len(additional_args) == 0:
+            if data == None:
+                self.params = None
+            else:
+                self.params = {'JSONString': str(data)}
+        else:
+            if data == None:
+                self.params = {}
+            else:
+                self.params = {'JSONString': str(data)}
+            keys = []
+            extra_param = {}
+            for i in kwargs:
+                keys.append(i)
+                extra_param = {i: additional_args[i]}
+                self.params.update(extra_param)
+        if call_type == 'GET':
+            self.request = requests.get(url=self.payload, headers=self.headers, params=self.params).text
+        elif call_type == 'POST':
+            self.request = requests.post(url=self.payload, headers=self.headers, params=self.params, files=file).text
+        elif call_type == 'PUT':
+            self.request = requests.put(url=self.payload, headers=self.headers, params=self.params).text
+        elif call_type == 'DELETE':
+            self.request = requests.delete(url=self.payload, headers=self.headers, params=self.params).text
+        self.r = json.loads(self.request)
+        return self.r
+    def attachment_customer(self,contact_id,json):
+        return self._standard_call('contacts/{}/attachment'.format(contact_id),'POST',file = json)      
+    def enable_portal_access(self, json_data):
+        return self._standard_call('contacts/{}/portal/enable','POST',json_data)   
+    def create_contacts(self, json_data):
+        return self._standard_call('contacts','POST',json_data)
+    def create_contact_person(self, json_data):
+        return self._standard_call('contacts/contactpersons','POST',json_data)####
+    def create_contact_address(self, contact_id, json_data):
+        return self._standard_call('contacts/{}/address'.format(contact_id),'POST',json_data)
+    def create_estimate(self, json_data):
+        return self._standard_call('estimates','POST',json_data)####
+    def create_sorder(self, json_data, autogen=True):
+        return self._standard_call('salesorders','POST',json_data,ignore_auto_number_generation=autogen)
+    def create_invoice(self, json_data):
+        return self._standard_call('invoices','POST',json_data)
+    def create_invoice_list(self, json_data):
+        return self._standard_call('salesorders/quickcreate/invoice','POST',json_data)    
+    def create_creditnote(self, json_data):
+        return self._standard_call('creditnotes','POST',json_data)
+    def create_creditnote_salesreturns(self,json_data,**kwargs):
+        return self._standard_call('creditnotes','POST',json_data)
+    def create_salesreturn(self,json_data, **kwargs):
+        return self._standard_call('salesreturns','POST',json_data,**kwargs)
+    def create_refunds(self,creditnote_id,json_data):
+        return self._standard_call('creditnotes/{}/refunds'.format(creditnote_id),'POST',json_data)
+    def create_customerPayments(self, json_data):
+        return self._standard_call('customerpayments','POST',json_data)
+    def create_expenses(self, json_data):
+        return self._standard_call('expenses','POST',json_data)
+    def create_porder(self, json_data):
+        return self._standard_call('purchaseorders','POST',json_data,ignore_auto_number_generation=False)
+    def create_purchase_receive(self, purchase_id, json_data):
+        return self._standard_call('purchasereceives/','POST',json_data,purchaseorder_id=purchase_id,ignore_auto_number_generation=False)
+    def create_bill(self, json_data):
+        return self._standard_call('bills/','POST',json_data)
+    def create_bills_receive(self, bill_id, purchase_id, json_data):
+        return self._standard_call('purchasereceives/','POST',json_data,bill_id=bill_id,purchaseorder_id=purchase_id,ignore_auto_number_generation=False)
+    def create_vendor_credits(self,json_data,autogen=True):#####
+        return self._standard_call('vendorcredits', 'POST', json_data, ignore_auto_number_generation=autogen)
+    def create_vendor_payments(self,json_data,autogen=True):#####
+        return self._standard_call('vendorpayments', 'POST',  json_data, ignore_auto_number_generation=autogen)
+    def create_items(self, json_data):
+        return self._standard_call('items/','POST',json_data)
+    def create_shipment(self, package_id, so_id, json_data, autogen=False):
+        return self._standard_call('shipmentorders','POST',json_data,ignore_auto_number_generation=autogen,salesorder_id=so_id,package_ids=[package_id])
+    def create_package(self, order_id, json_data,):
+        return self._standard_call('packages','POST',json_data,salesorder_id=order_id,ignore_auto_number_generation=False)
+    def create_transfer_order(self, json_data, autogen=True):
+        return self._standard_call('transferorders', 'POST', json_data, ignore_auto_number_generation=autogen)
+    def create_inventory_adjustment(self, json_data):   
+        return self._standard_call('inventoryadjustments','POST',json_data)
+    def create_salesreturn_receives(self,json_data,**kwargs):
+        return self._standard_call('salesreturnreceives','POST', json_data,**kwargs)  
+    def item_image(self,item_id,json_data):
+        return self._standard_call('items/{}/images'.format(item_id),'POST',json_data)
+
+    # Update#
+    def update_contact_person(self,contact_person_id,json_data):
+        return self._standard_call('contacts/contactpersons/{}'.format(contact_person_id),'PUT',json_data)
+    def update_contact(self, contact_id, json_data):
+        return self._standard_call('contacts/{}'.format(contact_id),'PUT',json_data)
+    def update_contact_address(self, contact_id, address_id, json_data):
+        return self._standard_call('contacts/{}/address/{}'.format(contact_id,address_id),'PUT',json_data)
+    def update_estimates(self, estimate_id, json_data):####
+        return self._standard_call('estimates/{}'.format(estimate_id), 'PUT', json_data)
+    def update_estimate_billing(self, estimate_id, json_data):####
+        return self._standard_call('estimates/{}/address/billing'.format(estimate_id), 'PUT', json_data)
+    def update_estimate_shipping(self, estimate_id, json_data):####
+        return self._standard_call('estimates/{}/address/shipping'.format(estimate_id), 'PUT', json_data)
+    def update_sorder(self, order_id, json_data):
+        return self._standard_call('salesorders/{}'.format(order_id),'PUT',json_data)
+    def update_sorder_billing(self, order_id, json_data):####
+        return self._standard_call('salesorders/{}/address/billing'.format(order_id), 'PUT', json_data)
+    def update_sorder_shipping(self, order_id, json_data):####
+        return self._standard_call('salesorders/{}/address/shipping'.format(order_id), 'PUT', json_data)
+    def update_invoice(self, invoice_id, json_data):
+        return self._standard_call('invoices/{}'.format(invoice_id),'PUT',json_data)
+    def update_invoice_billing(self, invoice_id, json_data):####
+        return self._standard_call('invoices/{:}/address/billing'.format(invoice_id),'PUT',json_data)
+    def update_invoice_shipping(self, invoice_id, json_data):####
+        return self._standard_call('invoices/{:}/address/shipping'.format(invoice_id),'PUT',json_data)
+    def update_credit_note(self, creditnote_id, json_data):
+        return self._standard_call('creditnotes/{:}'.format(creditnote_id),'PUT',json_data)
+    def update_credit_note_invoice_billing(self, invoice_id, json_data):####
+        return self._standard_call('creditnotes/{}/address/billing'.format(creditnote_id),'PUT',json_data)
+    def update_credit_note_shipping(self, invoice_id, json_data):####
+        return self._standard_call('creditnotes/{}/address/shipping'.format(creditnote_id),'PUT',json_data)
+    def update_credit_note_refund(self, invoice_id, creditnote_refund_id, json_data):####
+        return self._standard_call('creditnotes/:/refunds/:'.format(creditnote_id,creditnote_refund_id),'PUT',json_data)
+    def update_customerPayments(self, payment_id, json_data):####
+        return self._standard_call('customerpayments/{}'.format(payment_id),'PUT',json_data)
+    def update_customerPayments_refund(self, payment_id, refund_id, json_data):####
+        return self._standard_call('customerpayments/{}/refunds/:'.format(payment_id,refund_id),'PUT',json_data)
+    def update_expenses(self, expense_id, json_data):####
+        return self._standard_call('expenses/{}'.format(expense_id),'PUT',json_data)
+    def update_porder(self, purchase_order_id, json_data):
+        return self._standard_call('purchaseorders/{}'.format(purchase_order_id),'PUT',json_data)
+    def update_porder_billing(self, order_id, json_data):####
+        return self._standard_call('purchaseorders/{}/address/billing'.format(order_id), 'PUT', json_data)
+    def update_porder_shipping(self, order_id, json_data):####
+        return self._standard_call('purchaseorders/{}/address/shipping'.format(order_id), 'PUT', json_data)
+    def update_bill(self, bill_id, json_data):
+        return self._standard_call('bills/{}'.format(bill_id),'PUT',json_data)####
+    def update_bill_billing(self, bill_id, json_data):
+        return self._standard_call('bills/{}/address/billing'.format(bill_id),'PUT',json_data)####
+    def update_vendor_credits(self, vendor_credit_id, json_data):
+        return self._standard_call('vendorcredits/{}'.format(vendor_credit_id),'PUT',json_data)####
+    def update_vendor_payment(self, payment_id, json_data):
+        return self._standard_call('vendorpayments/{}'.format(payment_id),'PUT',json_data)
+    def update_item(self, item_id, json_data):
+        return self._standard_call('items/{}'.format(item_id),'PUT',json_data)
+    def update_package(self, package_id, json_data):
+        return self._standard_call('packages/{}'.format(package_id),'PUT',json_data)
+
+    # Delete#
+    def delete_contact(self, contact_person_id):
+        return self._standard_call('contacts/{}'.format(contact_person_id),'DELETE')####
+    def delete_contact_address(self, contact_person_id, address_id):
+        return self._standard_call('contacts/{:}/address/{:}'.format(contact_person_id, address_id),'DELETE')####
+    def delete_estimates(self, estimates_id):
+        return self._standard_call('estimates/{}'.format(estimates_id),'DELETE')
+    def delete_sorder(self, order_id):
+        return self._standard_call('salesorders/{}'.format(order_id),'DELETE')
+    def delete_invoice(self, invoice_id):
+        return self._standard_call('invoices/{}'.format(invoice_id),'DELETE')
+    def delete_invoicePayment(self, invoice_id, invoice_payment_id):
+        return self._standard_call('invoices/{:}/payments/{:}'.format(invoice_id, invoice_payment_id),'DELETE')####
+    def delete_applied_credit(self, invoice_id, creditnotes_invoice_id):
+        return self._standard_call('invoices/{:}/creditsapplied/{:}'.format(invoice_id, creditnotes_invoice_id),'DELETE')####
+    def delete_creditNote(self, creditnote_id):
+        return self._standard_call('creditnotes/{}'.format(creditnote_id),'DELETE')####
+    def delete_creditNote_refund(self, creditnote_id,creditnote_refund_id):
+        return self._standard_call('creditnotes/{}/refunds/{}'.format(creditnote_id,creditnote_refund_id),'DELETE')#####
+    def delete_customerPayments(self, customerpayments_id):
+        return self._standard_call('customerpayments/{}'.format(customerpayments_id),'DELETE')
+    def delete_expenses(self, expense_id):
+        return self._standard_call('expenses/{}'.format(expense_id), 'DELETE')#####
+    def delete_porder(self, order_id):
+        return self._standard_call('purchaseorders/{}'.format(order_id),'DELETE')
+    def delete_bill(self, bill_id):
+        return self._standard_call('bills/{}'.format(bill_id),'DELETE')########
+    def delete_bills_vendorCredits(self, vendor_credit_id,vendor_credit_bill_id):
+        return self._standard_call('bills/{}'.format(vendor_credit_id,vendor_credit_bill_id),'DELETE')########
+    def delete_bill_payments(self, bill_id,bill_payment_id):
+        return self._standard_call('bills/{}/payments/{}'.format(bill_id,bill_payment_id),'DELETE')########
+    def delete_vendorPayment(self, payment_id):
+        return self._standard_call('vendorpayments/{}'.format(payment_id),'DELETE')########
+    def delete_items(self, item_id):
+        return self._standard_call('items/{}'.format(item_id),'DELETE')
+    def delete_shipment(self, shipment_id):
+        return self._standard_call('shipmentorders/{}'.format(shipment_id),'DELETE')
+    def delete_package(self, package_id):
+        return self._standard_call('packages/{}'.format(package_id),'DELETE')
+    def delete_purchasereceives(self,purchasereceive_id):
+        return  self._standard_call ('purchasereceives/'+str(purchasereceive_id),'DELETE')
+    def delete_attachment_purchaseorders(self,purchaseorder_id):
+        return  self._standard_call ('purchaseorders/'+str(purchaseorder_id)+'/attachment','DELETE')    
+
+    # List#
+    def list_contacts(self, **kwargs):
+        return self._standard_call('contacts', 'GET', **kwargs)
+    def list_estimates(self, **kwargs):####
+        return self._standard_call('estimates', 'GET', **kwargs)
+    def list_credit_notes(self, **kwargs):####
+        return self._standard_call('creditnotes', 'GET', **kwargs)
+    def list_credit_note_refunds(self, **kwargs):####
+        return self._standard_call('creditnotes/refunds', 'GET', **kwargs)
+    def list_customer_payments(self, **kwargs):####
+        return self._standard_call('customerpayments', 'GET', **kwargs)
+    def list_expenses(self, **kwargs):####
+        return self._standard_call('expenses', 'GET', **kwargs)
+    def list_employees(self, **kwargs):####
+        return self._standard_call('employees', 'GET', **kwargs)
+    def list_bills(self, **kwargs):####
+        return self._standard_call('bills', 'GET', **kwargs)
+    def list_vendor_credits(self, **kwargs):####
+        return self._standard_call('vendorcredits', 'GET', **kwargs)
+    def list_vendor_payments(self, **kwargs):####
+        return self._standard_call('vendorpayments', 'GET', **kwargs)
+    def list_users(self, **kwargs):####
+        return self._standard_call('users', 'GET', **kwargs)
+    def list_items(self, **kwargs):####
+        return self._standard_call('items', 'GET', **kwargs)
+    def list_sorders(self,**kwargs):
+        return self._standard_call('salesorders','GET', **kwargs)
+    def list_porders(self,**kwargs):
+        return self._standard_call('purchaseorders','GET',**kwargs)
+    def list_projects(self, **kwargs):
+        return self._standard_call('projects', 'GET', **kwargs)
+    def list_packages(self, **kwargs):
+        return self._standard_call('packages','GET', **kwargs)
+    def list_all_pricebooks_id(self, **kwargs):
+        return self._standard_call('pricebooks','GET', **kwargs)
+    def list_invoices(self, **kwargs):
+        return self._standard_call('invoices', 'GET', **kwargs)
+    def list_manufacturers(self):
+        return self._standard_call('manufacturers', 'GET')
+    def list_vendors(self,**kwargs):
+        return self._standard_call('vendors', 'GET',**kwargs)
+    def list_item_adjustments(self,**kwargs):
+        return self._standard_call('inventoryadjustments', 'GET', **kwargs)
+    def list_categories(self,**kwargs):
+        return self._standard_call('categories', 'GET', **kwargs)
+    def list_transferorders(self,**kwargs):
+        return self._standard_call('transferorders', 'GET', **kwargs)
+    def list_warehouse(self,**kwargs):
+        return self._standard_call('settings/warehouses', 'GET', **kwargs) 
+    def list_purchasereceives(self, **kwargs):
+        return self._standard_call('purchasereceives','GET',**kwargs)     
+    def list_invoice_comments(self, invoice_id,**kwargs):
+        return self._standard_call('invoices/{}'.format(invoice_id),'GET',**kwargs)         
+        
+    # Get#
+    def get_contact(self, contact_id):
+        return self._standard_call('contacts/{}'.format(contact_id),'GET')
+    def get_estimate(self, estimate_id):
+        return self._standard_call('estimates/{}'.format(estimate_id), 'GET')####
+    def get_sorder(self, order_id):
+        return self._standard_call('salesorders/{}'.format(str(order_id)),'GET')
+    def get_invoice(self, invoice_id):
+        return self._standard_call('invoices/{}'.format(invoice_id),'GET')
+    def get_credit_note(self, creditnote_id):
+        return self._standard_call('creditnotes/{}'.format(creditnote_id),'GET')####
+    def get_customer_payment(self, customerpayments_id):
+        return self._standard_call('customerpayments/{}'.format(customerpayments_id),'GET')####
+    def get_expense(self, expense_id):
+        return self._standard_call('expenses/{}'.format(expense_id),'GET')####
+    def get_employee(self, employees_id):
+        return self._standard_call('employees/{}'.format(employees_id),'GET')####
+    def get_porder(self, order_id):
+        return self._standard_call('purchaseorders/{}'.format(order_id),'GET')
+    def get_bill(self, bills_id):
+        return self._standard_call('bills/{}'.format(bills_id),'GET')
+    def get_bill_payments(self, bills_id):
+        return self._standard_call('bills/{}/payments'.format(bills_id),'GET')
+    def get_vendor_credit(self, vendor_credit_id):
+        return self._standard_call('vendorcredits/{}'.format(vendor_credit_id),'GET')####
+    def get_vendor_payment(self, payment_id):
+        return self._standard_call('vendorpayments/{}'.format(payment_id),'GET')####
+    def get_user(self, user_id):
+        return self._standard_call('users/:'.format(user_id),'GET')####
+    def get_item(self, item_id):
+        return self._standard_call('items/{}'.format(item_id),'GET')
+    def get_contact_address(self, contact_id):
+        return self._standard_call('contacts/{}/address'.format(contact_id),'GET')####
+    def get_purchasereceives(self, purchasereceive_id):
+        return self._standard_call('purchasereceives/{}'.format(purchasereceive_id),'GET')
+    def get_package(self, package_id):
+        return self._standard_call('packages/{}'.format(package_id),'GET')
+    def get_shipment(self, shipment_id):
+        return self._standard_call('shipmentorders/{}'.format(shipment_id),'POST')
+    def get_pricebook(self,pricebook_id):
+        return self._standard_call('pricebooks/{}'.format(pricebook_id),'GET')
+    def get_salesreturn(self, salesreturn_id):
+        return self._standard_call('salesreturns/{}'.format(salesreturn_id),'GET')  
+    def get_report(self,customer_id,report_date):  
+        return self._standard_call('reports/invoiceaging/details?customer_id='+str(customer_id)+'&report_date='+str(report_date)+'&interval_range=30&number_of_columns=2&sort_column=date','GET',)     
+    def get_bank_transaction(self,transaction_id):
+        return self._standard_call('banktransactions/{}'.format(transaction_id),'GET')           
+    def get_transferorders(self, transfer_order_id):
+        return self._standard_call('transferorders/{}'.format(transfer_order_id),'GET')   
+
+
+    def mark_contact_as_active(self, contact_id):####
+        return self._standard_call('contacts/{}/active'.format(contact_id),'POST')
+    def mark_contact_as_inactive(self, contact_id):####
+        return self._standard_call('contacts/{}/inactive'.format(contact_id),'POST')
+    def mark_estimate_as_sent(self, estimate_id):####
+        return self._standard_call('estimates/{:}/status/sent'.format(contact_id),'POST')
+    def mark_estimate_as_accepted(self, estimate_id):####
+        return self._standard_call('estimates/{:}/status/accepted'.format(contact_id),'POST')
+    def mark_estimate_as_declined(self, estimate_id):####
+        return self._standard_call('estimates/{:}/status/declined'.format(contact_id),'POST')
+    def mark_sorder_as_open(self, salesorder_id):####
+        return self._standard_call('salesorders/{:}/status/open'.format(salesorder_id),'POST')
+    def mark_sorder_as_voided(self, order_id):####
+        return self._standard_call('salesorders/{}/status/void'.format(order_id),'POST')
+    def mark_invoice_as_sent(self, invoice_id):####
+        return self._standard_call('invoices/{}/status/sent'.format(invoice_id),'POST')
+    def mark_invoice_as_void(self, invoice_id):####
+        return self._standard_call('invoices/:/status/void'.format(invoice_id),'POST')
+    def mark_invoice_as_draft(self, invoice_id):####
+        return self._standard_call('invoices/:/status/draft'.format(order_id),'POST')
+    def mark_credit_note_as_void(self, creditnote_id):####
+        return self._standard_call('creditnotes/{}/status/void'.format(creditnote_id),'POST')
+    def mark_credit_note_as_draft(self, creditnote_id):####
+        return self._standard_call('creditnotes/{}/status/draft'.format(creditnote_id),'POST')
+    def mark_credit_note_as_open(self, creditnote_id):####
+        return self._standard_call('creditnotes/{}/status/open'.format(creditnote_id),'POST')
+    def mark_porder_as_open(self, purchaseorder_id):####
+        return self._standard_call('purchaseorders/{}/status/open'.format(purchaseorder_id),'POST')
+    def mark_porder_as_billed(self, purchaseorder_id):####
+        return self._standard_call('purchaseorders/{}/status/billed'.format(purchaseorder_id),'POST')
+    def mark_porder_as_cancelled(self, purchaseorder_id):####
+        return self._standard_call('purchaseorders/{}/status/cancelled'.format(purchaseorder_id),'POST')
+    def mark_bill_as_void(self, purchaseorder_id):####
+        return self._standard_call('bills/{}/status/void'.format(purchaseorder_id),'POST')
+    def mark_bill_as_open(self, purchaseorder_id):####
+        return self._standard_call('bills/{}/status/open'.format(purchaseorder_id),'POST')
+    def mark_shipment_as_delivered(self, shipment_id):
+        return self._standard_call('shipmentorders/{}/status/delivered'.format(shipment_id),'POST')
+    def mark_item_as_inactive(self, item_id):
+        return self._standard_call('items/{}/inactive'.format(item_id),'POST')
+    def mark_item_as_active(self, item_id):####
+        return self._standard_call('items/{}/active'.format(item_id),'POST')
+
+   
+    def sent_statements(self,contact_id,json_data,**kwargs):
+        return self._standard_call('contacts/{}/statements/email'.format(contact_id),'POST',json_data,**kwargs)
+    def sent_invoice(self,invoice_id,json_data):
+        return self._standard_call('invoices/{}/email'.format(invoice_id),'POST',json_data)
+
+    def report_activitylogs(self,**kwargs):
+        return self._standard_call('reports/activitylogs','GET',**kwargs)  
+    def report_account_transactions(self,**kwargs):
+        return self._standard_call('reports/accounttxns','GET',**kwargs)  
+    def report_inventory_summary(self,**kwargs):
+        return self._standard_call('reports/inventorysummary','GET',**kwargs)
+    def set_pricelist_price_item(self, pricebook_id: str, item_id: str, data: dict):
+        return self._standard_call(f'pricebooks/{pricebook_id}/items/{item_id}', 'PUT', data)  
+        
