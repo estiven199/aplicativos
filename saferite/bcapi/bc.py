@@ -2,39 +2,38 @@ import requests
 import json
 import boto3
 
-
 class bcapi:  
     def __init__(self,cod_store):
-            if cod_store.upper()=='ISP':
-                self.endpoint = 'https://api.bigcommerce.com/stores/e163lt99'
-                self.headers = {'accept': "application/json",
-                'content-type': "application/json",
-                'x-auth-token': "i9iraumus6c3zpa8a3pqz9le1fgv245",
-                'x-auth-client':"foiciztdz4mptpgy83rj08brrphomb2",}
-            elif cod_store.upper()=='SS':
-                self.endpoint = 'https://api.bigcommerce.com/stores/4yhayto7'
-                self.headers = {'accept': "application/json",
-                'content-type': "application/json",
-                'x-auth-token': "9tmmhy9nw1rl20ljv6kv2jtzfbbyhuq",
-                'x-auth-client': "m3u7la2n6igltyoydefn4z67phv87zj",}  
-            elif cod_store.upper()=='FL':
-                self.endpoint = 'https://api.bigcommerce.com/stores/rgulxx84tf'
-                self.headers = {'accept': "application/json",
-                'content-type': "application/json",
-                'x-auth-token': "93kbq8p4s5djcdxtlkccexk3xzjah68"
-                } 
-            elif cod_store.upper()=='N95':
-                self.endpoint = 'https://api.bigcommerce.com/stores/b7e0lck4gj'
-                self.headers = {'accept': "application/json",
-                'content-type': "application/json",
-                'x-auth-token': "6ftx690qpv5j3tgyuzrx5shpo8qke7a"
-                }
-            elif cod_store.upper()=='TEST':
-                self.endpoint = 'https://api.bigcommerce.com/stores/zqimewefx0'
-                self.headers = {'Accept': "application/json",
-                'Content-Type': "application/json",
-                'X-Auth-Token': "qkybqhtavtqh2z0jj4qh86ezqiqq77b"
-                }          
+        if cod_store.upper()=='ISP':
+            self.endpoint = 'https://api.bigcommerce.com/stores/e163lt99'
+            self.headers = {'accept': "application/json",
+            'content-type': "application/json",
+            'x-auth-token': "i9iraumus6c3zpa8a3pqz9le1fgv245",
+            'x-auth-client':"foiciztdz4mptpgy83rj08brrphomb2",}
+        elif cod_store.upper()=='SS':
+            self.endpoint = 'https://api.bigcommerce.com/stores/4yhayto7'
+            self.headers = {'accept': "application/json",
+            'content-type': "application/json",
+            'x-auth-token': "9tmmhy9nw1rl20ljv6kv2jtzfbbyhuq",
+            'x-auth-client': "m3u7la2n6igltyoydefn4z67phv87zj",}  
+        elif cod_store.upper()=='FL':
+            self.endpoint = 'https://api.bigcommerce.com/stores/rgulxx84tf'
+            self.headers = {'accept': "application/json",
+            'content-type': "application/json",
+            'x-auth-token': "93kbq8p4s5djcdxtlkccexk3xzjah68"
+            } 
+        elif cod_store.upper()=='N95':
+            self.endpoint = 'https://api.bigcommerce.com/stores/b7e0lck4gj'
+            self.headers = {'accept': "application/json",
+            'content-type': "application/json",
+            'x-auth-token': "6ftx690qpv5j3tgyuzrx5shpo8qke7a"
+            }
+        elif cod_store.upper()=='TEST':
+            self.endpoint = 'https://api.bigcommerce.com/stores/zqimewefx0'
+            self.headers = {'Accept': "application/json",
+            'Content-Type': "application/json",
+            'X-Auth-Token': "qkybqhtavtqh2z0jj4qh86ezqiqq77b"
+            }          
 
 
     def _standard_call(self, module, call_type, cpl,data=None,json_data=None, date_filter = None, **kwargs):
@@ -162,8 +161,11 @@ class bcapi:
         return self._standard_call('customers/{}'.format(customer_id),'PUT','/v2/',json_data) 
 
 
-    def delete_order_shipment(self,order_id):
-        return self._standard_call(f'orders/{order_id}/shipments','DELETE','/v2/') 
+    def delete_order_shipments(self,order_id):
+        return self._standard_call(f'orders/{order_id}/shipments','DELETE','/v2/')
+
+    def delete_order_shipment(self,order_id,shipment_id):
+        return self._standard_call(f'orders/{order_id}/shipments/{shipment_id}','DELETE','/v2/')     
 
     def delete_customers(self,**kwargs):
         return self._standard_call('customers','DELETE','/v3/',**kwargs) 
